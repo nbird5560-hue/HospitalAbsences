@@ -206,7 +206,7 @@ mod_Predictor_server <- function(id, model_data) {
         tags$div(
           style = "margin-top: 10px; display: flex; gap: 20px;",
           tags$div(
-            tags$strong("95% Bayesian Uncertainty:"), br(),
+            tags$strong("95% Bayesian Uncertainty Interval:"), br(),
             format(round(res$bayesian_pi[1], 0), big.mark = ","), " - ",
             format(round(res$bayesian_pi[2], 0), big.mark = ",")
           ),
@@ -233,7 +233,6 @@ mod_Predictor_server <- function(id, model_data) {
                  rep("Prediction Interval", length(res$raw_p)))
       )
 
-      library(ggplot2)
       ggplot(plot_df, aes(x = type, y = val, fill = type)) +
         geom_boxplot(alpha = 0.7, outlier.shape = NA) +
         coord_flip() +

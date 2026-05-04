@@ -1,6 +1,6 @@
 #' ModelFitter UI Function
 #'
-#' @description \emph{mod_ModelFitter.R} dynamically builds GAM(M) ensembles for
+#' @description \emph{mod_ModelFitter.R} dynamically builds GA(M)M ensembles for
 #' future prediction, and comprises the user input in the \strong{Model Fitting Panel}.
 #'
 #' Key variable names are parsed from data passed from
@@ -8,7 +8,7 @@
 #' These names (character vector) are then conditionally transformed such that
 #' additional functions including splines wrap certain variables. Then, these are
 #' composed into a \pkg{mgcv}-readable formula and fed into \emph{mgcv::bam()} to
-#' fit GAM(M)s.
+#' fit GA(M)Ms.
 #'
 #' An initial model is used to estimate a temporal autocorrelation parameter for
 #' the ensemble, whose models are then fit in parallel using the \pkg{parallel}
@@ -19,8 +19,8 @@
 #'
 #' See in-line comments for more info.
 #'
-#' @return A list including the model ensemble, the GAM(M) formula structure, and the data
-#' used for fitting the GAM(M)s.
+#' @return A list including the model ensemble, the GA(M)M formula structure, and the data
+#' used for fitting the GA(M)Ms.
 #'
 #' @param id,input,output,session Internal parameters for {shiny}.
 #'

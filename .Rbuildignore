@@ -7,3 +7,6 @@ $run_dev.*
 ^.here$
 ^TEST\.R$
 ^README\.Rmd$
+^doc$
+^Meta$
+^LICENSE\.md$

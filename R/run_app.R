@@ -7,6 +7,7 @@
 #' @export
 #' @importFrom shiny shinyApp
 #' @importFrom golem with_golem_options
+#' @import mgcv
 run_app <- function(
     onStart = NULL,
     options = list(),
@@ -21,7 +22,8 @@ run_app <- function(
       onStart = function() {
         library(mgcv)
         n_workers <- max(1,ceiling(parallel::detectCores()/2))# may need to lower
-        future::plan(future::multisession, workers = n_workers)
+        future::plan(future::multisession,
+                     workers = n_workers)
         message(paste("--- Parallel plan initialized with", n_workers, "workers ---"))
 
         shiny::onStop(function() {

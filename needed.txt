@@ -1,9 +1,0 @@
-prediction and uncertainty for bagged predictions --- complete
-
-box and whiskers for preds  --- complete
-
-documentation for which buttons to push
-
-vignette is which buttons I pressed (can be screenshots)
-
-presentation is Complete!

@@ -16,23 +16,23 @@ mod_DataSelection_ui <- function(id) {
   tagList(
     wellPanel(
       h2("1. Data Selection"),
-
-      # Select data scope
-      h4("Define Data Scope:"),
       selectInput(
         inputId = ns("data_scope_selection"),
-        label = "Population level or by Staffing Group:",
+        label = "Compare at Population level or by Staffing Group:",
         choices = c("By Staff Group" = "by_staff", "All Staff Groups" = "all_staff"),
         selected = "by_staff"
       ),
       hr(),
-      h4("Select Model-Fitting Variables:"),
+      h4("Select Model Variables:"),
       mod_var_select_ui(ns("region_select"), var_dictionary[["nhse_region_name"]], TRUE),
       mod_var_select_ui(ns("benchmark_select"), var_dictionary[["benchmark_group"]], TRUE),
 
-      # Conditional UI
-      uiOutput(ns("staff_container"))
-
+      # Conditional panel for staff group
+      conditionalPanel(
+        condition = sprintf("input['%s'] == 'by_staff'", ns("data_scope_selection")),
+        h4("Incorporate Random Effect:"),
+        mod_var_select_ui(ns("staff_select"), var_dictionary[["staff_group"]], TRUE)
+      )
     )
   )
 }

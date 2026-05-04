@@ -16,6 +16,7 @@ knitr::opts_chunk$set(
 # HospitalAbsences
 
 <!-- badges: start -->
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
 The goal of HospitalAbsences is to provide a framework for predicting and visualizing trends of hours lost to sickness and sickness rate for hospitals from the UK's National Healthcare Service (NHS).  This package comprises an app with these functionalities.
@@ -25,30 +26,40 @@ The goal of HospitalAbsences is to provide a framework for predicting and visual
 You can install the development version of HospitalAbsences like so:
 
 ``` r
-# FILL THIS IN! HOW CAN PEOPLE INSTALL YOUR DEV PACKAGE?
-```
+if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+remotes::install_github("nbird5560-hue/HospitalAbsences)
 
-## Example
-
-This is a basic example which shows you how to solve a common problem:
-
-```{r example}
 library(HospitalAbsences)
-## basic example code
+run_app()
 ```
 
-What is special about using `README.Rmd` instead of just `README.md`? You can include R chunks like so:
+## App Usage
 
-```{r cars}
-summary(cars)
-```
+Upon starting the app with `run_app()` you will be met with three (3) page displays. Each of these panels controls a different tool of the application.  
 
-You'll still need to render `README.Rmd` regularly, to keep `README.md` up-to-date. `devtools::build_readme()` is handy for this.
+### Summary Statistics Tool
+The leftmost page, upon which the app is initialized, is the \strong{Dynamic Summary Statistics Comparison Tool}.  This tool allows the user to compare and contrast the summary statistics for select subsets of the data.  Below the table input, there is a set of input selections, each of which allows the user to select a particular NHS Region (region within the UK), Benchmark Group (group of medical departments which are akin to each other), and Staff Group (specific type of faculty).  If an input is left blank, that variable is unfiltered and left at the population level.  The green button with a `+` symbol allows the user to create another filtered slice of the data, and their summary statistics will be reflected in the dynamic table above.  Every row is given a row ID on the left hand side of the row UI.  When two or more rows of data exist in the dynamic table, the table may be filtered in descending or ascending order by numeric value or alphabetic order on any column of the summary statistics.  The red trash-can button can be used to delete a data slice, and thus remove it from the dynamic table.  The yellow "Clear All" button in the top right resets all rows and summary stats in the dynamic table.
 
-You can also embed plots, for example:
+### Trend Analysis Tool
+The second page contains the \strong{Trend Analysis Tool}, which can be used to draw trend lines for slices of data specified by the same data filtering UI inputs as in the \strong{Dynamic Summary Statistics Comparison Tool}.  Stacking multiple trend lines upon the plot allows the user to visually compare the `sickness_rate` trends of different subsets of the population data.  Here, $sickness\_rate = \frac{hours\_lost}{hours\_available}$ for any data subset at any time.
 
-```{r pressure, echo = FALSE}
-plot(pressure)
-```
+### Modeling & Prediction Tool
+The rightmost and final page of the app is the \strong{Modeling & Prediction Tool}, which can be used to predict projected monthly absences for the group of individuals pertaining to specified factor levels.  The module trains an ensemble of Generalized Additive Models (GAMs) or Generalized Additive Mixed Models (GAMMs), and returns an bagged prediction for the newdata slice.
 
-In that case, don't forget to commit and push the resulting figure files, so they display on GitHub and CRAN.
+#### 1. Data Selection
+This submodule allows the user to define the scope of the data used for fitting.  The topmost dropdown menu offers the user the choice between predicting on a summarized dataset which comprises data which is not partitioned by staff group, or a dataset partitioned by staff group.  Choosing the latter option will allow users to select whether they want to include `staff_group` as a random effect, and fit an ensemble of GAMMs (instead of GAMs).  
+
+Below that drop-down menu, users can choose to incorporate and filter the levels of additional predictor factors included in the GAM(M)s.  Factors which are filtered to only 1 level are dropped from ensemble formulas, with the understanding that the training of that ensemble is scoped to that single level of the filtered factor.
+
+#### 2. Model Fitting
+Once the user is satisfied with their data selection in panel 1, they may push the \strong{Fit Model Ensemble} button to start building a GAM(M) ensemble.  There are two heavy computations controlled by this model.  An autocorrelation tuning parameter $\rho$ is estimated from a simple model, which is then used to fit the GAM(M) ensemble.  The ensemble training is a parallelized process, where one GAM(M) is fit for every active core claimed upon setup.  The models in these ensembles capture seasonal variation using cyclic splines.  The progress bar can be used to gauge relative completeness of these processes.  This module may take about a minute to complete.
+
+#### 3. Ensemble Prediction
+Upon successful completion of ensemble fitting, the user may use this panel to select levels for the factor inputs selected in \strong{Panel 1} (assuming they were not filtered to 1 level).  If filtered to 1 level, the ensemble can be assumed to be predicting with that level held equal.  If a variable was not selected in \strong{Panel 1}, it can be assumed that the model is representative of the population level for that factor. Beyond these variable inputs, the user must input a month and year for the prediction with the calendar input.  
+
+Additionally, the user may input a known or estimated `hours_available` for the respective data slice.  If unknown and left blank, `hours_available` is estimated using bagged linear regression models { hours_available ~ year } where the data is narrowed to the scope of the month of interest.  This creates a projection of what `hours_available` may be, beyond the scope of the known, historic data.
+
+When the user has filled all required inputs, they must push the \strong{Calculate Prediction} button to initiate GAM(M) ensemble predictions. The ensemble predictions are used to create an average estimate for `hours_lost`, as well as a 95% Bayesian Uncertainty Interval, and a 95% Prediction Interval for the newdata slice.  Side-by-side comparison of these intervals is depicted via box-and-whiskers plot beneath the rendering of these intervals
+
+## Finishing Up
+The app may be terminated at any time by stopping the R process with q(), by stopping the console manually in an IDE, or by simply closing the user's R session. parallel processors will automatically be terminated.
