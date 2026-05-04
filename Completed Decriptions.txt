@@ -1,0 +1,17 @@
+R/mod_DataSelection.R --- complete
+R/mod_ModelFitter.R --- complete
+R/mod_Predictor.R --- complete
+R/mod_TrendRow.R --- complete
+R/mod_TrendVisualizer.R --- complete
+R/mod_var_select.R --- complete
+R/fct_import_data.R --- complete
+
+
+R/app_config.R 
+R/app_server.R
+R/app_ui.R
+
+
+R/run_app.R
+R/TEST.R
+R/utils-pipe.R

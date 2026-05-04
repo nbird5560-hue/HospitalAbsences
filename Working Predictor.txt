@@ -1,0 +1,391 @@
+#' Predictor UI Function
+#'
+#' @description \emph{mod_Predictor.R} handles all predictions of `hours_available` using
+#' the ensemble built in \emph{mod_Predictor.R}, and controls the \strong{Ensemble Prediction Panel}.
+#'
+#' The user can select factor levels for included variables selectd in \strong{Data Selection}
+#' (with the condition that the factor has more than one level after filtering),
+#' as well as a month and year for the prediction, and the option to input a known
+#' monthly hours available.  If the input for monthly hours available is left blank,
+#' predictions from an ensemble of 1000 OLS models fitted on a dataset, narrowed to the scope of
+#' the categorical variable inputs and selected month, are bagged to estimate `hours_available`.
+#'
+#' The combination of the UI inputs and the terms synthesized therefrom are structured into
+#' a data slice, which is used by the models in the ensemble to bag predictions of `hours_lost`.
+#'
+#' See in-line comments for more info.
+#'
+#' @param id,input,output,session Internal parameters for {shiny}.
+#'
+#' @noRd
+#'
+#' @importFrom shiny NS tagList
+mod_Predictor_ui <- function(id) {
+
+  ns <- NS(id)
+
+  tagList(
+
+    wellPanel(
+
+      h2("3. Ensemble Prediction"),
+
+      # Conditional UIs to indicate readiness of utility
+
+      uiOutput(ns("dynamic_inputs")),
+
+      hr(),
+
+      uiOutput(ns("predict_btn_container")),
+
+      br(),
+
+      uiOutput(ns("predicted_panel"))
+
+    )
+
+  )
+
+}
+
+
+
+#' Predictor Server Functions
+
+#'
+
+#' @noRd
+
+mod_Predictor_server <- function(id, model_data) {
+
+  moduleServer(id, function(input, output, session) {
+
+    ns <- session$ns
+
+
+
+    # Id-ing required inputs
+
+    required_input_ids <- reactive({
+
+      req(model_data()$models)
+
+      m <- model_data()$models[[1]]
+
+      vars <- names(m$var.summary)
+
+
+
+      # ns list definition
+
+      mapping <- list(
+
+        "staff_group" = "in_staff_group",
+
+        "benchmark_group" = "in_benchmark",
+
+        "nhse_region_name" = "in_region"
+
+      )
+
+      # Collecting vars needed for prediction
+
+      active_ids <- unname(
+
+        unlist(
+
+          mapping[vars[vars %in% names(mapping)]]
+
+        )
+
+      )
+
+      # Only requires month_year if it's actually rendered
+
+      return(c(active_ids, "month_year"))
+
+    })
+
+
+
+    # Dynamic Inputs
+
+    output$dynamic_inputs <- renderUI({
+
+      req(model_data()$models)
+
+      m <- model_data()$models[[1]]
+
+      df <- model_data()$data
+
+      vars <- names(m$var.summary)
+
+
+
+      tagList(
+
+        # Dynamic selection options based on factor levels available
+
+        if ("staff_group" %in% vars) {
+
+          selectInput(ns("in_staff_group"), "Select Staff Group", choices = unique(df$staff_group))
+
+        },
+
+        if ("benchmark_group" %in% vars) {
+
+          selectInput(ns("in_benchmark"), "Select Benchmark Group", choices = unique(df$benchmark_group))
+
+        },
+
+        if ("nhse_region_name" %in% vars) {
+
+          selectInput(ns("in_region"), "Select Region", choices = unique(df$nhse_region_name))
+
+        },
+
+        div(
+
+          shinyWidgets::airDatepickerInput(
+
+            inputId = ns("month_year"),
+
+            label = "Select Month and Year",
+
+            value = Sys.Date(), # Set a default so it's not NULL initially
+
+            view = "months",
+
+            minView = "months",
+
+            dateFormat = "MMM yyyy"
+
+          )
+
+        ),
+
+        div(
+
+          shinyWidgets::autonumericInput(
+
+            inputId = ns("num_input"),
+
+            label = "Enter Monthly Labor Hours Available (If Known)",
+
+            value = NULL,
+
+            decimalPlaces = 1
+
+          ),
+
+          shiny::helpText("Leaving this blank may affect predictive accuracy")
+
+        )
+
+      )
+
+    })
+
+
+
+    # Predict button UI render
+
+    output$predict_btn_container <- renderUI({
+
+      # Checking if all rendered inputs have a value
+
+      ids <- required_input_ids()
+
+      ready <- all(sapply(ids, function(x) shiny::isTruthy(input[[x]])))
+
+
+
+      if (!ready) return(helpText("Select all inputs above to enable prediction."))
+
+
+
+      actionButton(ns("predict_btn"), "Calculate Prediction", class = "btn-info")
+
+    })
+
+
+
+    # Prediction logic
+
+    prediction <- eventReactive(input$predict_btn, {
+
+      req(model_data()$models, model_data()$data, input$month_year)
+
+
+
+      m <- model_data()$models
+
+      df <- model_data()$data
+
+      my <- input$month_year
+
+
+
+      # Date-related variables transformed from calendar input
+
+      .month <- lubridate::month(my)
+
+      .year <- lubridate::year(my)
+
+      .timestep <- (.year - min(df$year)) * 12 + .month
+
+
+
+      # Unknown Hours Available Computations
+
+      if (!shiny::isTruthy(input$num_input)) {
+
+        # narrowing scope for hours_available prediction
+
+        hist_df <- df %>%
+
+          dplyr::filter(month == .month)
+
+        if (shiny::isTruthy(input$in_staff_group)) {
+
+          hist_df <- hist_df %>% dplyr::filter(staff_group == input$in_staff_group)
+
+        }
+
+        if (shiny::isTruthy(input$in_benchmark)) {
+
+          hist_df <- hist_df %>% dplyr::filter(benchmark_group == input$in_benchmark)
+
+        }
+
+        if (shiny::isTruthy(input$in_region)) {
+
+          hist_df <- hist_df %>% dplyr::filter(nhse_region_name == input$in_region)
+
+        }
+
+
+
+        # Quick check for adequate data
+
+        req(nrow(hist_df) > 2)
+
+
+
+        # bagging lms for a projection of hours_available
+
+        set.seed(787)
+
+        # This does have a little latency, but it is worth it for the prediction stability
+
+        # Parallelizing this is actually slower due to export time
+
+        boot_results <- lapply(1:1000, function(i) {
+
+          boot_sample <- hist_df[sample(nrow(hist_df), replace = TRUE), ]
+
+          # Fitting trend on historical points
+
+          trend_mod <- lm(hours_available ~ year, data = boot_sample)
+
+          # Projecting for the year selected in UI
+
+          predict(trend_mod, newdata = data.frame(year = .year))
+
+        })
+
+        .hours_available <- mean(unlist(boot_results), na.rm = TRUE)
+
+      } else {
+
+        .hours_available <- input$num_input
+
+      }
+
+
+
+      # creating prediction slice
+
+      pred_df <- data.frame(
+
+        hours_available = .hours_available,
+
+        month = .month,
+
+        year = .year,
+
+        timestep = .timestep,
+
+        staff_group = input$in_staff_group %||% NA,
+
+        benchmark_group = input$in_benchmark %||% NA,
+
+        nhse_region_name = input$in_region %||% NA
+
+      )
+
+
+
+      # Predicting on that slice across the ensemble
+
+      preds <- sapply(m, function(x) {
+
+        tryCatch({
+
+          exp(predict(x, newdata = pred_df))
+
+        }, error = function(e) {
+
+          message("Predictions Failed, Inadequate data")
+
+        })
+
+      })
+
+
+
+      mean(preds, na.rm = TRUE)
+
+    })
+
+
+
+    # Results panel render
+
+    output$predicted_panel <- renderUI({
+
+      # Explicitly wait for the result of the button click
+
+      res <- prediction()
+
+      req(res)
+
+
+
+      if (is.na(res)) {
+
+        return(div(class = "alert alert-warning", "Prediction unavailable for these specific inputs."))
+
+      }
+
+
+
+      tags$div(
+
+        style = "margin-top: 20px; padding: 20px; border-radius: 8px; background-color: #ffffff; border-left: 5px solid #17a2b8; box-shadow: 0 4px 6px rgba(0,0,0,0.1);",
+
+        tags$h4("Predicted Hours Lost to Sickness", style = "margin: 0 0 10px 0; color: #555;"),
+
+        tags$div(style = "font-size: 2.5rem; font-weight: bold; color: #17a2b8;",
+
+                 format(round(res, 0), big.mark = ",")),
+
+        tags$small(class = "text-muted", paste("Estimate for", format(input$month_year, "%B %Y")))
+
+      )
+
+    })
+
+  })
+
+}
